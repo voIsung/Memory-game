@@ -26,9 +26,9 @@ namespace Memory_game.Model.Services.Impl
                 udpClient?.Close();
                 udpClient?.Dispose();
 
-                udpClient = new UdpClient(port);
-                //udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                //udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, port));
+                udpClient = new UdpClient();
+                udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, port));
                 running = true;
 
                 while (running)

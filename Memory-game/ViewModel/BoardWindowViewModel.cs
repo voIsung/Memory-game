@@ -117,7 +117,7 @@ namespace Memory_game.ViewModel
         {
             _rows = gameState.settings.Rows;
             _columns = gameState.settings.Columns;
-            _myPlayerId = lobbyService.MyConnectionId;
+            _myPlayerId = lobbyService.PlayerToken;
             _myScore = 0;
             _opponentBestScore = 0;
             CanInteract = true;
@@ -232,7 +232,7 @@ namespace Memory_game.ViewModel
                 TurnTimeSeconds = turnTimeSeconds;
                 TimeLeft = TurnTimeSeconds;
 
-                if (currentPlayerId == _lobbyService.MyConnectionId)
+                if (currentPlayerId == _lobbyService.PlayerToken)
                 {
                     CurrentTurnText = "Twoja tura";
                     CanInteract = true;

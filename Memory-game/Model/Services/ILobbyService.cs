@@ -18,6 +18,7 @@ namespace Memory_game.Model.Services
         public event Action OnPlayerDisconnected;
         public event Action<int, int> OnWaitingForPlayers;
 
+        public string PlayerToken { get; }
         public string MyConnectionId { get; }
         public Task SendFlipCardAsync(int cardId);
         public Task CreateNewGame(GameSettings gameSettings);
