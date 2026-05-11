@@ -12,7 +12,7 @@ namespace Memory_game.View
         public ServerListWindow()
         {
             InitializeComponent();
-            ServerListWindowViewModel viewModel = new ServerListWindowViewModel(new ServerListener(), App.SharedLobbyService, new NavigationServiceImpl());
+            ServerListWindowViewModel viewModel = new ServerListWindowViewModel(new ServerListener(), App.SharedLobbyService, new NavigationServiceImpl(), App.LastServerService);
             DataContext = viewModel;
             Owner = Application.Current.MainWindow;
         }

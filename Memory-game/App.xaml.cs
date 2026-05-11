@@ -12,7 +12,9 @@ namespace Memory_game
     public partial class App : Application
     {
         public static IDeckPackageService DeckPackageService { get; } = new DeckPackageService();
-        public static ILobbyService SharedLobbyService { get; } = new LobbyService(DeckPackageService);
+        public static IPlayerTokenService PlayerTokenService { get; } = new PlayerTokenServiceImpl();
+        public static ILobbyService SharedLobbyService { get; } = new LobbyService(DeckPackageService, PlayerTokenService);
+        public static ILastServerService LastServerService { get; } = new LastServerServiceImpl();
 
     }
 

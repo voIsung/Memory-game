@@ -11,6 +11,7 @@ namespace Memory_game.Model.Services.Impl
 
         HubConnection? connection;
         private readonly IDeckPackageService _deckPackageService;
+        private readonly IPlayerTokenService _playerTokenService;
         private Task _pendingDeckSyncTask = Task.CompletedTask;
         public event Action<GameState> OnGameStarted;
         public event Action<int> OnCardFlipped;
@@ -20,13 +21,15 @@ namespace Memory_game.Model.Services.Impl
         public event Action<string> OnGameOver;
         public event Action OnPlayerDisconnected;
         public event Action<int, int> OnWaitingForPlayers;
-        public string PlayerToken { get; } = Guid.NewGuid().ToString();
+        public string PlayerToken => _playerTokenService.PlayerToken;
 
         public string MyConnectionId => connection?.ConnectionId ?? "";
 
-        public LobbyService(IDeckPackageService deckPackageService)
+        public LobbyService(IDeckPackageService deckPackageService, IPlayerTokenService playerTokenService)
         {
             _deckPackageService = deckPackageService;
+            _playerTokenService = playerTokenService;
+
         }
 
         public async Task ConnectAsync(string serverAddress)
