@@ -156,7 +156,11 @@ namespace Memory_game.ViewModel
             {
                 string imagePath = imagePathsByPairId.ContainsKey(card.pairId) ? imagePathsByPairId[card.pairId] : string.Empty;
 
-                Cards.Add(new CardViewModel(card.id, card.pairId, imagePath));
+                var newCard = new CardViewModel(card.id, card.pairId, imagePath);
+                newCard.IsFaceUp = card.isFaceUp;
+                newCard.IsMatched = card.isMatched;
+
+                Cards.Add(newCard);
             }
         }
 
