@@ -10,46 +10,74 @@ namespace Memory_game_server.Hubs
     {
 
         private static GameState _gameState = new GameState();
-        private static List<string> _players = new List<string>();
+        private static List<PlayerSession> _sessions = new List<PlayerSession>();
         private static string _currentPlayerTurn = "";
         private static List<int> _currentlyFlippedCards = new List<int>();
         private static int _currentPlayerIndex = 0;
 
-        public async Task CreateNewGame(GameSettings gameSettings)
+        public async Task CreateNewGame(GameSettings gameSettings, string playerToken)
         {
-            _players.Clear();
-            _players.Add(Context.ConnectionId);
+            _sessions.Clear();
+            _sessions.Add(new PlayerSession
+            {
+                Token = playerToken,
+                ConnectionId = Context.ConnectionId,
+                IsOnline = true
+            });
+
+            _gameState.HostId = playerToken;
 
             _gameState.settings = gameSettings;
             _gameState.Scores.Clear();
+            _gameState.Scores[playerToken] = 0;
         }
 
 
-        public async Task JoinGame()
+        public async Task JoinGame(string playerToken)
         {
-            if (!_players.Contains(Context.ConnectionId))
+
+            var existingSession = _sessions.FirstOrDefault(session => session.Token == playerToken);
+
+            if(existingSession != null)
             {
-                _players.Add(Context.ConnectionId);
-                _gameState.Scores[Context.ConnectionId] = 0;
+                existingSession.ConnectionId = Context.ConnectionId;
+                existingSession.IsOnline = true;
+
+                await Clients.Caller.SendAsync(HubMethods.GameStarted, _gameState);
+                await Clients.Caller.SendAsync(HubMethods.ChangeTurn, _currentPlayerTurn, _gameState.settings.TurnTimeSeconds);
+
+                return;
+            }
+
+            if (!_sessions.Any(session => session.Token == playerToken))
+            {
+                _sessions.Add(new PlayerSession
+                {
+                    Token = playerToken,
+                    ConnectionId = Context.ConnectionId,
+                    IsOnline = true
+                });
+
+                _gameState.Scores[playerToken] = 0;
             }
 
             int maxPlayers = _gameState.settings.MaxPlayers;
 
-            await Clients.All.SendAsync(HubMethods.WaitingForPlayers, _players.Count, maxPlayers);
+            await Clients.All.SendAsync(HubMethods.WaitingForPlayers, _sessions.Count, maxPlayers);
 
-            if (_players.Count == maxPlayers)
+            if (_sessions.Count == maxPlayers)
             {
                 Random rng = new Random();
-                _currentPlayerIndex = rng.Next(_players.Count);
-                _currentPlayerTurn = _players[_currentPlayerIndex];
+                _currentPlayerIndex = rng.Next(_sessions.Count);
+                _currentPlayerTurn = _sessions[_currentPlayerIndex].Token;
 
                 if (_gameState.settings.DeckZipData != null && _gameState.settings.DeckZipData.Length > 0)
                 {
-                    foreach (var playerId in _players)
+                    foreach (var session in _sessions)
                     {
-                        if (playerId != _players[0])
+                        if (session.Token != _gameState.HostId)
                         {
-                            await Clients.Client(playerId).SendAsync(
+                            await Clients.Client(session.ConnectionId).SendAsync(
                                 HubMethods.DeckPackage,
                                 _gameState.settings.DeckName,
                                 _gameState.settings.DeckZipData,
@@ -69,7 +97,9 @@ namespace Memory_game_server.Hubs
 
         public async Task FlipCard(int cardId)
         {
-            if (Context.ConnectionId != _currentPlayerTurn)
+
+            string callerToken = GetTokenByConnectionId(Context.ConnectionId);
+            if (callerToken != _currentPlayerTurn)
                 return;
 
             Card cardToFlip = _gameState.CardsOnBoard.FirstOrDefault(card => card.id == cardId);
@@ -101,16 +131,34 @@ namespace Memory_game_server.Hubs
                     firstCard.isFaceUp = false;
                     secondCard.isFaceUp = false;
 
-                    _currentPlayerIndex = (_currentPlayerIndex + 1) % _players.Count;
-                    _currentPlayerTurn = _players[_currentPlayerIndex];
-
                     await Clients.All.SendAsync(HubMethods.MatchFailed, _currentlyFlippedCards);
+                    await PassTurnToNextOnlinePlayer();
 
-                    int turnTimeSeconds = _gameState.settings.TurnTimeSeconds;
-                    await Clients.All.SendAsync(HubMethods.ChangeTurn, _currentPlayerTurn, turnTimeSeconds);
+                    
                 }
                 _currentlyFlippedCards.Clear();
             }
+        }
+
+        private async Task PassTurnToNextOnlinePlayer()
+        {
+            int startringIndex = _currentPlayerIndex;
+
+            do
+            {
+                _currentPlayerIndex = (_currentPlayerIndex + 1) % _sessions.Count;
+            } while (!_sessions[_currentPlayerIndex].IsOnline && _currentPlayerIndex !=  startringIndex);
+
+            _currentPlayerTurn = _sessions[_currentPlayerIndex].Token;
+            int turnTimeSeconds = _gameState.settings.TurnTimeSeconds;
+            await Clients.All.SendAsync(HubMethods.ChangeTurn, _currentPlayerTurn, turnTimeSeconds);
+        }
+
+
+
+        private string GetTokenByConnectionId(string connectionId)
+        {
+            return _sessions.FirstOrDefault(s => s.ConnectionId == connectionId)?.Token ?? "";
         }
 
         private void GenerateBoard(GameState gameState)
@@ -166,24 +214,26 @@ namespace Memory_game_server.Hubs
                 int maxScore = _gameState.Scores.Values.Max();
                 var winners = _gameState.Scores.Where(s => s.Value == maxScore).Select(s => s.Key).ToList();
 
-                foreach (var playerId in _players)
+                foreach (var session in _sessions)
                 {
                     string result;
-                    if (winners.Count == 1 && winners[0] == playerId)
+                    if (winners.Count == 1 && winners[0] == session.Token)
                         result = "win";
-                    else if (winners.Count > 1 && winners.Contains(playerId))
+                    else if (winners.Count > 1 && winners.Contains(session.Token))
                         result = "draw";
                     else
                         result = "loss";
 
-                    await Clients.Client(playerId).SendAsync(HubMethods.GameOver, result);
+                    await Clients.Client(session.ConnectionId).SendAsync(HubMethods.GameOver, result);
                 }
             }
         }
 
         public async Task TurnTimeout()
         {
-            if (Context.ConnectionId != _currentPlayerTurn)
+            string callerToken = GetTokenByConnectionId(Context.ConnectionId);
+
+            if (callerToken!= _currentPlayerTurn)
                 return;
 
             if (_currentlyFlippedCards.Count > 0)
@@ -205,16 +255,41 @@ namespace Memory_game_server.Hubs
                 return;
             }
 
-            _currentPlayerIndex = (_currentPlayerIndex + 1) % _players.Count;
-            _currentPlayerTurn = _players[_currentPlayerIndex];
-
-            int turnTimeSeconds = _gameState.settings.TurnTimeSeconds;
-            await Clients.All.SendAsync(HubMethods.ChangeTurn, _currentPlayerTurn, turnTimeSeconds);
+            await PassTurnToNextOnlinePlayer();
         }
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
-            _players.Remove(Context.ConnectionId);
-            await Clients.All.SendAsync(HubMethods.PlayerDisconnected);
+            var diconnectedPlayerSession = _sessions.FirstOrDefault(s => s.ConnectionId == Context.ConnectionId);
+
+            if(diconnectedPlayerSession != null)
+            {
+                diconnectedPlayerSession.IsOnline = false;
+                bool wasHisTurn = (_currentPlayerTurn == diconnectedPlayerSession.Token);
+                bool isHost = (diconnectedPlayerSession.Token == _gameState.HostId);
+
+                if (isHost)
+                {
+                    await Clients.All.SendAsync(HubMethods.PlayerDisconnected);
+                }
+                else
+                {
+                    if (wasHisTurn)
+                    {
+                        if (_currentlyFlippedCards.Count > 0)
+                        {
+                            await Clients.All.SendAsync(HubMethods.MatchFailed, _currentlyFlippedCards);
+                            _currentlyFlippedCards.Clear();
+                        }
+
+                        if (_currentPlayerIndex >= _sessions.Count)
+                        {
+                            _currentPlayerIndex = 0;
+                        }
+                        await PassTurnToNextOnlinePlayer();
+                    }
+                }
+            }
+
             await base.OnDisconnectedAsync(exception);
         }
     }

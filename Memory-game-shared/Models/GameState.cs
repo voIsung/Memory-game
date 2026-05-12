@@ -13,6 +13,7 @@ namespace Memory_game_shared.Models
         public Dictionary<string, int> Scores { get; set; } = new Dictionary<string, int>();
         public bool IsGameOver { get; set; }
         public GameSettings settings { get; set; }
+        public string HostId { get; set; } = string.Empty;
 
     }
 }

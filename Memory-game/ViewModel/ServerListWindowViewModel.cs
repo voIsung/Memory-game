@@ -12,10 +12,12 @@ namespace Memory_game.ViewModel
         private IServerListener _serverListener;
         private ILobbyService _lobbyService;
         private INavigationService _navigationService;
+        private ILastServerService _lastServerService;
 
         public ObservableCollection<string> AvailableServers { get; } = new();
         private Dictionary<string, string> _lobbyAddresses = new();
         private bool _isConnecting = false;
+        private bool _isGameStarting = false;
 
         private string _waitingMessage = string.Empty;
         public string WaitingMessage
@@ -51,11 +53,12 @@ namespace Memory_game.ViewModel
         }
 
         public RelayCommand ConnectToSevrer => new RelayCommand(async execute => await JoinGameAsync(), canExecute => true);
-        public ServerListWindowViewModel(IServerListener serverListener, ILobbyService lobbyService, INavigationService navigationService)
+        public ServerListWindowViewModel(IServerListener serverListener, ILobbyService lobbyService, INavigationService navigationService, ILastServerService lastServerService)
         {
             _serverListener = serverListener;
             _lobbyService = lobbyService;
             _navigationService = navigationService;
+            _lastServerService = lastServerService;
 
             _serverListener.ServerFound += (lobbyName, address) =>
             {
@@ -72,6 +75,14 @@ namespace Memory_game.ViewModel
             _serverListener.StartListeningAsync();
             _lobbyService.OnGameStarted += HandleGameStarter;
             _lobbyService.OnWaitingForPlayers += HandleWaitingForPlayers;
+
+            string lastAddress = _lastServerService.GetLastServerAddress();
+            if (!string.IsNullOrEmpty(lastAddress))
+            {
+                string reconnectName = "Dołącz ponownie";
+                AvailableServers.Add(reconnectName);
+                _lobbyAddresses[reconnectName] = lastAddress;
+            }
 
         }
 
@@ -96,6 +107,9 @@ namespace Memory_game.ViewModel
                 if (!string.IsNullOrEmpty(SelectedServer) && _lobbyAddresses.ContainsKey(SelectedServer))
                 {
                     string address = _lobbyAddresses[SelectedServer];
+
+                    _lastServerService.SaveLastServerAddress(address);
+
                     await _lobbyService.ConnectAsync(address);
                     await _lobbyService.JoinGameAsync();
                 }
@@ -123,6 +137,8 @@ namespace Memory_game.ViewModel
 
         private void HandleGameStarter(GameState gameState)
         {
+
+            _isGameStarting = true;
             _lobbyService.OnGameStarted -= HandleGameStarter;
             _lobbyService.OnWaitingForPlayers -= HandleWaitingForPlayers;
 
@@ -137,6 +153,10 @@ namespace Memory_game.ViewModel
         {
             _lobbyService.OnGameStarted -= HandleGameStarter;
             _lobbyService.OnWaitingForPlayers -= HandleWaitingForPlayers;
+
+            if(!_isGameStarting)
+                _lobbyService.DisconnectAsync();
+
             _serverListener.StopListening();
             Debug.WriteLine("Closing udp");
         }

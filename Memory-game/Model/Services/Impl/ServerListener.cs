@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
@@ -13,18 +14,24 @@ namespace Memory_game.Model.Services.Impl
         public event Action<string, string>? ServerFound;
         private UdpClient? udpClient;
         private bool running;
+        private static readonly int port = 7788;
 
         public async Task StartListeningAsync()
         {
-            udpClient?.Close();
-            udpClient?.Dispose();
-
-            udpClient = new UdpClient(7788);
-            running = true;
-
-            while (running)
+            /*
+             For testing on one pc delete port from constructor and uncommnet two commented lines
+             */
+            try
             {
-                try
+                udpClient?.Close();
+                udpClient?.Dispose();
+
+                udpClient = new UdpClient(port);
+                //udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                //udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, port));
+                running = true;
+
+                while (running)
                 {
                     var result = await udpClient.ReceiveAsync();
                     var message = Encoding.UTF8.GetString(result.Buffer);
@@ -39,12 +46,11 @@ namespace Memory_game.Model.Services.Impl
 
                         ServerFound?.Invoke(lobbyName, address);
                     }
-                }catch(Exception e)
-                {
-                    Debug.WriteLine(e.Message);
-                    break;
                 }
-               
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine(e.Message);
             }
         }
 

@@ -33,6 +33,7 @@
                    Visibility="{Binding IsWaiting, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
         <Button Grid.Row="2" Content="Connect" Width="100" Height="50"
-                Command="{Binding ConnectToSevrer}"/>
+                Command="{Binding ConnectToSevrer}"
+                IsEnabled="{Binding CanConnect}"/>
     </Grid>
 </Window>

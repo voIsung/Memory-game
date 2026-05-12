@@ -117,7 +117,7 @@ namespace Memory_game.ViewModel
         {
             _rows = gameState.settings.Rows;
             _columns = gameState.settings.Columns;
-            _myPlayerId = lobbyService.MyConnectionId;
+            _myPlayerId = lobbyService.PlayerToken;
             _myScore = 0;
             _opponentBestScore = 0;
             CanInteract = true;
@@ -156,7 +156,11 @@ namespace Memory_game.ViewModel
             {
                 string imagePath = imagePathsByPairId.ContainsKey(card.pairId) ? imagePathsByPairId[card.pairId] : string.Empty;
 
-                Cards.Add(new CardViewModel(card.id, card.pairId, imagePath));
+                var newCard = new CardViewModel(card.id, card.pairId, imagePath);
+                newCard.IsFaceUp = card.isFaceUp;
+                newCard.IsMatched = card.isMatched;
+
+                Cards.Add(newCard);
             }
         }
 
@@ -232,7 +236,7 @@ namespace Memory_game.ViewModel
                 TurnTimeSeconds = turnTimeSeconds;
                 TimeLeft = TurnTimeSeconds;
 
-                if (currentPlayerId == _lobbyService.MyConnectionId)
+                if (currentPlayerId == _lobbyService.PlayerToken)
                 {
                     CurrentTurnText = "Twoja tura";
                     CanInteract = true;
