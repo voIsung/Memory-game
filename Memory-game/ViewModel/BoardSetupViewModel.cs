@@ -211,7 +211,7 @@ namespace Memory_game.ViewModel
                     _broadcastService.SetLobbyName(gameSettings.LobbyName);
                     _ = _broadcastService.StartBroadcastingAsync(5000);
 
-                    ErrorMessage = "Czekanie na drugiego gracza";
+                    ErrorMessage = "Czekanie na pozostalych graczy";
                 }
                 catch (Exception e)
                 {
