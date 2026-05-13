@@ -14,8 +14,8 @@ namespace Memory_game.Model.Services
         public event Action<List<int>, string> OnMatchFound;
         public event Action<List<int>> OnMatchFailed;
         public event Action<string, int> OnTurnChanged;
-        public event Action<string> OnGameOver;
-        public event Action OnPlayerDisconnected;
+        public event Action<string, Dictionary<string, int>> OnGameOver;
+        public event Action<string> OnPlayerDisconnected;
         public event Action<int, int> OnWaitingForPlayers;
 
         public string PlayerToken { get; }

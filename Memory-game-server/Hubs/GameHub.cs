@@ -224,7 +224,7 @@ namespace Memory_game_server.Hubs
                     else
                         result = "loss";
 
-                    await Clients.Client(session.ConnectionId).SendAsync(HubMethods.GameOver, result);
+                    await Clients.Client(session.ConnectionId).SendAsync(HubMethods.GameOver, result, _gameState.Scores);
                 }
             }
         }
@@ -269,10 +269,20 @@ namespace Memory_game_server.Hubs
 
                 if (isHost)
                 {
-                    await Clients.All.SendAsync(HubMethods.PlayerDisconnected);
+                    await Clients.Others.SendAsync(HubMethods.PlayerDisconnected, DisconnectReasons.HostDisconnected);
                 }
                 else
                 {
+                    int onlinePlayersCount = _sessions.Count(session => session.IsOnline);
+                    if (onlinePlayersCount <= 1)
+                    {
+                        await Clients.Others.SendAsync(HubMethods.PlayerDisconnected, DisconnectReasons.NotEnoughPlayers);
+                        await base.OnDisconnectedAsync(exception);
+                        return;
+                    }
+
+                    await Clients.Others.SendAsync(HubMethods.PlayerDisconnected, DisconnectReasons.PlayerDisconnected);
+
                     if (wasHisTurn)
                     {
                         if (_currentlyFlippedCards.Count > 0)

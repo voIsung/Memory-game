@@ -13,11 +13,11 @@ namespace Memory_game.ViewModel
         private int _rows;
         private int _columns;
         private int _myScore;
-        private int _opponentBestScore;
         private string _myPlayerId;
         private Dictionary<string, int> _allScores = new Dictionary<string, int>();
-        private string _currentTurnText;
+        private string _currentTurnText = string.Empty;
         private bool _isProcessingMove;
+        private bool _hasHandledFatalDisconnect;
         private double _timeLeft;
         private int _turnTimeSeconds = 5;
         private DispatcherTimer? _turnTimer;
@@ -27,6 +27,7 @@ namespace Memory_game.ViewModel
         private readonly IServerManager _serverManager;
 
         public ObservableCollection<CardViewModel> Cards { get; set; } = new ObservableCollection<CardViewModel>();
+        public ObservableCollection<PlayerScoreViewModel> ScoreBoard { get; set; } = new ObservableCollection<PlayerScoreViewModel>();
 
         public RelayCommand FlipCardCommand => new RelayCommand(async execute => await FlipCard((CardViewModel)execute), canExecute => true);
 
@@ -56,16 +57,6 @@ namespace Memory_game.ViewModel
             set
             {
                 _myScore = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public int OpponentBestScore
-        {
-            get => _opponentBestScore;
-            set
-            {
-                _opponentBestScore = value;
                 OnPropertyChanged();
             }
         }
@@ -118,8 +109,10 @@ namespace Memory_game.ViewModel
             _rows = gameState.settings.Rows;
             _columns = gameState.settings.Columns;
             _myPlayerId = lobbyService.PlayerToken;
-            _myScore = 0;
-            _opponentBestScore = 0;
+            _allScores = new Dictionary<string, int>(gameState.Scores);
+            if (!_allScores.ContainsKey(_myPlayerId))
+                _allScores[_myPlayerId] = 0;
+            _myScore = _allScores[_myPlayerId];
             CanInteract = true;
             _turnTimeSeconds = gameState.settings.TurnTimeSeconds;
             TimeLeft = _turnTimeSeconds;
@@ -137,6 +130,7 @@ namespace Memory_game.ViewModel
             _lobbyService.OnWaitingForPlayers += HandleWaitingForPlayers;
 
             InitializeCards(gameState.CardsOnBoard ,deckName);
+            InitializeScoreBoard();
         }
 
         private void InitializeCards(List<Card> cardsFromServer, string deckName)
@@ -197,21 +191,34 @@ namespace Memory_game.ViewModel
                     ResetTimer();
                 }
 
-                UpdateOpponentBestScore();
+                UpdateScoreBoard();
             });
         }
 
-        private void UpdateOpponentBestScore()
+        private void InitializeScoreBoard()
         {
-            int bestOpponentScore = 0;
-            foreach (var score in _allScores)
-            {
-                if (score.Key != _myPlayerId && score.Value > bestOpponentScore)
-                {
-                    bestOpponentScore = score.Value;
-                }
-            }
-            OpponentBestScore = bestOpponentScore;
+            ScoreBoard.Clear();
+
+            foreach (var score in GetOrderedScores())
+                ScoreBoard.Add(new PlayerScoreViewModel(score.Key, score.Key == _myPlayerId, score.Value));
+        }
+
+        private void UpdateScoreBoard()
+        {
+            ScoreBoard.Clear();
+
+            foreach (var score in GetOrderedScores())
+                ScoreBoard.Add(new PlayerScoreViewModel(score.Key, score.Key == _myPlayerId, score.Value));
+
+            MyScore = _allScores.GetValueOrDefault(_myPlayerId, 0);
+        }
+
+        private IEnumerable<KeyValuePair<string, int>> GetOrderedScores()
+        {
+            return _allScores
+                .OrderByDescending(score => score.Value)
+                .ThenByDescending(score => score.Key == _myPlayerId)
+                .ThenBy(score => score.Key);
         }
 
         private void HandleCardsMatchFailed(List<int> cardIds)
@@ -244,7 +251,7 @@ namespace Memory_game.ViewModel
                 }
                 else
                 {
-                    CurrentTurnText = "Tura przeciwnika";
+                    CurrentTurnText = "Tura innego gracza";
                     CanInteract = false;
                 }
             });
@@ -304,10 +311,13 @@ namespace Memory_game.ViewModel
             await _lobbyService.SendTurnTimeoutAsync();
         }
 
-        private void HandleGameOver(string result)
+        private void HandleGameOver(string result, Dictionary<string, int> finalScores)
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
+                _allScores = new Dictionary<string, int>(finalScores);
+                UpdateScoreBoard();
+
                 string message;
                 switch (result)
                 {
@@ -325,8 +335,16 @@ namespace Memory_game.ViewModel
                         break;
                 }
 
+                string scoreSummary = string.Join(
+                    "\n",
+                    GetOrderedScores().Select(score =>
+                    {
+                        string playerName = score.Key == _myPlayerId ? "Ty" : $"Gracz {GetShortPlayerId(score.Key)}";
+                        return $"{playerName}: {score.Value}";
+                    }));
+
                 MessageBoxResult mbResult = MessageBox.Show(
-                    message + "\n\nKliknij OK, aby zamknąć grę.",
+                    message + "\n\nWyniki:\n" + scoreSummary + "\n\nKliknij OK, aby zamknąć grę.",
                     "Koniec gry",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -348,6 +366,11 @@ namespace Memory_game.ViewModel
             });
         }
 
+        private string GetShortPlayerId(string playerId)
+        {
+            return playerId.Length <= 6 ? playerId : playerId.Substring(0, 6);
+        }
+
         private async Task FlipCard(CardViewModel card)
         {
             if (card != null && !card.IsFaceUp && !card.IsMatched)
@@ -356,12 +379,31 @@ namespace Memory_game.ViewModel
             }
         }
 
-        private async void HandlePlayerDisconnected()
+        private void HandlePlayerDisconnected(string reason)
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
+                if (reason == Memory_game_shared.Constants.DisconnectReasons.PlayerDisconnected)
+                {
+                    MessageBox.Show("Jeden z graczy rozłączył się. Gra trwa dalej.");
+                    return;
+                }
+
+                if (_hasHandledFatalDisconnect)
+                    return;
+
+                _hasHandledFatalDisconnect = true;
                 StopTimer();
-                MessageBox.Show("Drugi gracz rozłączył się");
+                CanInteract = false;
+
+                string message = reason switch
+                {
+                    Memory_game_shared.Constants.DisconnectReasons.HostDisconnected => "Host rozłączył się. Gra została zakończona.",
+                    Memory_game_shared.Constants.DisconnectReasons.NotEnoughPlayers => "Zostałeś sam w grze. Gra została zakończona.",
+                    _ => "Utracono połączenie z serwerem. Gra została zakończona."
+                };
+
+                MessageBox.Show(message);
                 
                 foreach(Window window in Application.Current.Windows)
                 {
@@ -374,7 +416,6 @@ namespace Memory_game.ViewModel
               
             });
 
-           
         }
         private void HandleWaitingForPlayers(int currentCount, int maxCount)
         {
