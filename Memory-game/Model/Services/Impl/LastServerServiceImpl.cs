@@ -14,8 +14,8 @@ namespace Memory_game.Model.Services.Impl
         public LastServerServiceImpl()
         {
             // Uncomment for testing on the same device need 3 instane of this project in 3 different folders
-            string appDataFolder = AppDomain.CurrentDomain.BaseDirectory;
-            //string appDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MemoryGame");
+            //string appDataFolder = AppDomain.CurrentDomain.BaseDirectory;
+            string appDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MemoryGame");
 
             if (!Directory.Exists(appDataFolder))
             {
