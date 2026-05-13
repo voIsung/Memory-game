@@ -14,7 +14,7 @@ namespace Memory_game.View
             IServerManager serverManager)
         {
             InitializeComponent();
-            BoardWindowViewModel viewModel = new BoardWindowViewModel(gameState, deckName, deckService, App.SharedLobbyService, serverManager);
+            BoardWindowViewModel viewModel = new BoardWindowViewModel(gameState, deckName, deckService, App.SharedLobbyService, serverManager, App.LastServerService);
             DataContext = viewModel;
         }
 

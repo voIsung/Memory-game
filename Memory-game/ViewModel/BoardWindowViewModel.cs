@@ -25,7 +25,7 @@ namespace Memory_game.ViewModel
         private readonly ICardDeckService _deckService;
         private readonly ILobbyService _lobbyService;
         private readonly IServerManager _serverManager;
-
+        private readonly ILastServerService _lastServerService;
         public ObservableCollection<CardViewModel> Cards { get; set; } = new ObservableCollection<CardViewModel>();
         public ObservableCollection<PlayerScoreViewModel> ScoreBoard { get; set; } = new ObservableCollection<PlayerScoreViewModel>();
 
@@ -104,7 +104,8 @@ namespace Memory_game.ViewModel
         public BoardWindowViewModel(GameState gameState, string deckName,
             ICardDeckService deckService,
             ILobbyService lobbyService,
-            IServerManager serverManager)
+            IServerManager serverManager,
+            ILastServerService lastServerService)
         {
             _rows = gameState.settings.Rows;
             _columns = gameState.settings.Columns;
@@ -120,6 +121,7 @@ namespace Memory_game.ViewModel
             _deckService = deckService;
             _lobbyService = lobbyService;
             _serverManager = serverManager;
+            _lastServerService = lastServerService;
 
             _lobbyService.OnCardFlipped += HandleCardFlipped;
             _lobbyService.OnMatchFound += HandleCardsMatchFound;
@@ -315,6 +317,7 @@ namespace Memory_game.ViewModel
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
+                _lastServerService.ClearLastServerAddress();
                 _allScores = new Dictionary<string, int>(finalScores);
                 UpdateScoreBoard();
 
@@ -395,6 +398,7 @@ namespace Memory_game.ViewModel
                 _hasHandledFatalDisconnect = true;
                 StopTimer();
                 CanInteract = false;
+                _lastServerService.ClearLastServerAddress();
 
                 string message = reason switch
                 {
@@ -440,6 +444,7 @@ namespace Memory_game.ViewModel
 
             if (_serverManager != null)
             {
+                _lastServerService.ClearLastServerAddress();
                 await _serverManager.StopServerAsync();
             }
   

@@ -10,5 +10,6 @@ namespace Memory_game.Model.Services
     {
         string GetLastServerAddress();
         void SaveLastServerAddress(string address);
+        void ClearLastServerAddress();
     }
 }

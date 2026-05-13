@@ -39,5 +39,13 @@ namespace Memory_game.Model.Services.Impl
         {
             File.WriteAllText(_filePath, address);
         }
+
+        public void ClearLastServerAddress()
+        {
+            if (File.Exists(_filePath))
+            {
+                File.Delete(_filePath);
+            }
+        }
     }
 }
