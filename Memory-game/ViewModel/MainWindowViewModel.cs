@@ -69,7 +69,7 @@ namespace Memory_game.ViewModel
         {
             var folderPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "Memory_game");
+                "MemoryGame");
 
             return Path.Combine(folderPath, "nick.txt");
         }
