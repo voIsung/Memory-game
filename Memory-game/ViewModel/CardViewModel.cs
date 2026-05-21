@@ -8,9 +8,9 @@ namespace Memory_game.ViewModel
     {
         private Card card;
 
-        public CardViewModel(int cardId,int pairId, string imagePath)
+        public CardViewModel(int cardId, int pairId, string imagePath)
         {
-            card = new Card{id = cardId  ,pairId = pairId, imagePath = imagePath};
+            card = new Card { id = cardId, pairId = pairId, imagePath = imagePath };
         }
 
         public int PairId

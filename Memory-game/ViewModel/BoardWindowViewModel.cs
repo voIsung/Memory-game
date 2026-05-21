@@ -3,7 +3,6 @@ using Memory_game.MVVM;
 using Memory_game.View;
 using Memory_game_shared.Models;
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -23,6 +22,7 @@ namespace Memory_game.ViewModel
         private double _timeLeft;
         private int _turnTimeSeconds = 5;
         private DispatcherTimer? _turnTimer;
+        private bool _isCleaningUp;
 
         private readonly ICardDeckService _deckService;
         private readonly ILobbyService _lobbyService;
@@ -144,26 +144,18 @@ namespace Memory_game.ViewModel
         {
             string[] imageFiles = _deckService.GetCardsFromDeck(deckName);
 
-            var imagePathsByFileName = imageFiles
-                .GroupBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
-                .Where(group => !string.IsNullOrWhiteSpace(group.Key))
-                .ToDictionary(group => group.Key!, group => group.First(), StringComparer.OrdinalIgnoreCase);
-
-            var fallbackImagePathsByPairId = new Dictionary<int, string>();
+            var imagePathsByPairId = new Dictionary<int, string>();
             for (int i = 0; i < imageFiles.Length; i++)
             {
-                fallbackImagePathsByPairId[i] = imageFiles[i];
+                if (i < imageFiles.Length)
+                {
+                    imagePathsByPairId[i] = imageFiles[i];
+                }
             }
 
             foreach (Card card in cardsFromServer)
             {
-                string imagePath = string.Empty;
-                string serverFileName = Path.GetFileName(card.imagePath);
-
-                if (!string.IsNullOrWhiteSpace(serverFileName) && imagePathsByFileName.TryGetValue(serverFileName, out string localImagePath))
-                    imagePath = localImagePath;
-                else if (fallbackImagePathsByPairId.TryGetValue(card.pairId, out string fallbackImagePath))
-                    imagePath = fallbackImagePath;
+                string imagePath = imagePathsByPairId.ContainsKey(card.pairId) ? imagePathsByPairId[card.pairId] : string.Empty;
 
                 var newCard = new CardViewModel(card.id, card.pairId, imagePath);
                 newCard.IsFaceUp = card.isFaceUp;
@@ -455,7 +447,13 @@ namespace Memory_game.ViewModel
 
         public async Task Cleanup()
         {
+            if (_isCleaningUp)
+                return;
+
+            _isCleaningUp = true;
+
             StopTimer();
+
             _lobbyService.OnCardFlipped -= HandleCardFlipped;
             _lobbyService.OnMatchFound -= HandleCardsMatchFound;
             _lobbyService.OnMatchFailed -= HandleCardsMatchFailed;
@@ -464,14 +462,38 @@ namespace Memory_game.ViewModel
             _lobbyService.OnPlayerDisconnected -= HandlePlayerDisconnected;
             _lobbyService.OnWaitingForPlayers -= HandleWaitingForPlayers;
 
-            await _lobbyService.DisconnectAsync();
+            Application.Current?.Dispatcher.Invoke(() =>
+            {
+                Cards.Clear();
+                ScoreBoard.Clear();
+            });
+
+            try
+            {
+                await _lobbyService.DisconnectAsync();
+            }
+            catch
+            {
+                
+            }
 
             if (_serverManager != null)
             {
                 _lastServerService.ClearLastServerAddress();
-                await _serverManager.StopServerAsync();
+
+                try
+                {
+                    await _serverManager.StopServerAsync();
+                }
+                catch
+                {
+
+                }
             }
 
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
         }
 
     }
