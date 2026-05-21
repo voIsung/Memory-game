@@ -16,7 +16,7 @@ namespace Memory_game.ViewModel
         private string _selectedDeck = string.Empty;
         private string _errorMessage = string.Empty;
         private ObservableCollection<string> _availableDecks;
-        private INavigationService _navigationService;
+        private readonly INavigationService _navigationService;
 
         public RelayCommand CreateDeckCommand => new RelayCommand(execute => CreateDeck(), canExecute => true);
         public RelayCommand DeleteDeckCommand => new RelayCommand(execute => DeleteDeck(), canExecute => !string.IsNullOrEmpty(SelectedDeck));
@@ -29,12 +29,13 @@ namespace Memory_game.ViewModel
             _navigationService = navigationService;
             _deckService = deckService;
             _availableDecks = new ObservableCollection<string>(_deckService.GetAllDecks());
-            _selectedDeck = _navigationService.SelectedDeck;
-        }
 
-        public CardDeckViewModel(INavigationService navigationService)
-        {
-            this._navigationService = navigationService;
+            if (_availableDecks.Contains(_navigationService.SelectedDeck))
+                _selectedDeck = _navigationService.SelectedDeck;
+            else
+                _selectedDeck = _availableDecks.FirstOrDefault() ?? string.Empty;
+
+            _navigationService.SelectedDeck = _selectedDeck;
         }
 
         public ObservableCollection<string> AvailableDecks
@@ -52,8 +53,8 @@ namespace Memory_game.ViewModel
             get => _selectedDeck;
             set
             {
-                _selectedDeck = value;
-                _navigationService.SelectedDeck = value;
+                _selectedDeck = value ?? string.Empty;
+                _navigationService.SelectedDeck = _selectedDeck;
                 OnPropertyChanged();
             }
         }
@@ -80,22 +81,32 @@ namespace Memory_game.ViewModel
 
         private void CreateDeck()
         {
-            if (string.IsNullOrWhiteSpace(NewDeckName))
+            string deckName = NewDeckName.Trim();
+
+            if (string.IsNullOrWhiteSpace(deckName))
             {
                 ErrorMessage = "Podaj nazwę talii.";
                 return;
             }
 
-            if (AvailableDecks.Contains(NewDeckName))
+            if (AvailableDecks.Any(deck => string.Equals(deck, deckName, StringComparison.OrdinalIgnoreCase)))
             {
                 ErrorMessage = "Talia o tej nazwie już istnieje.";
                 return;
             }
 
-            _deckService.CreateDeck(NewDeckName, Array.Empty<string>());
-            AvailableDecks.Add(NewDeckName);
-            NewDeckName = string.Empty;
-            ErrorMessage = string.Empty;
+            try
+            {
+                _deckService.CreateDeck(deckName, Array.Empty<string>());
+                AvailableDecks.Add(deckName);
+                SelectedDeck = deckName;
+                NewDeckName = string.Empty;
+                ErrorMessage = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage = ex.Message;
+            }
         }
 
         private void DeleteDeck()
@@ -106,15 +117,29 @@ namespace Memory_game.ViewModel
                 return;
             }
 
-            if (SelectedDeck.StartsWith("DefaultDeck"))
+            if (SelectedDeck.StartsWith("DefaultDeck", StringComparison.OrdinalIgnoreCase))
             {
                 ErrorMessage = "Nie można usunąć domyślnej talii.";
                 return;
             }
 
-            _deckService.DeleteDeck(SelectedDeck);
-            AvailableDecks.Remove(SelectedDeck);
-            SelectedDeck = string.Empty;
+            string deckToDelete = SelectedDeck;
+
+            try
+            {
+                _deckService.DeleteDeck(deckToDelete);
+                AvailableDecks.Remove(deckToDelete);
+
+                SelectedDeck = AvailableDecks.FirstOrDefault(deck => deck.StartsWith("DefaultDeck", StringComparison.OrdinalIgnoreCase))
+                               ?? AvailableDecks.FirstOrDefault()
+                               ?? string.Empty;
+
+                ErrorMessage = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage = ex.Message;
+            }
         }
 
         private void AddCards()
@@ -130,8 +155,15 @@ namespace Memory_game.ViewModel
 
             if (dialog.ShowDialog() == true)
             {
-                _deckService.AddCardsToDeck(SelectedDeck, dialog.FileNames);
-                ErrorMessage = string.Empty;
+                try
+                {
+                    _deckService.AddCardsToDeck(SelectedDeck, dialog.FileNames);
+                    ErrorMessage = string.Empty;
+                }
+                catch (Exception ex)
+                {
+                    ErrorMessage = ex.Message;
+                }
             }
         }
 
@@ -142,13 +174,19 @@ namespace Memory_game.ViewModel
 
         private void SeeCardDeckPreview()
         {
+            if (string.IsNullOrWhiteSpace(SelectedDeck))
+                return;
+
             string deckPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MemoryGame", "Decks", SelectedDeck);
 
             if (Directory.Exists(deckPath))
             {
                 Process.Start("explorer.exe", deckPath);
             }
-
+            else
+            {
+                ErrorMessage = "Wybrana talia nie istnieje na dysku.";
+            }
         }
     }
 }

@@ -3,6 +3,7 @@ using Memory_game.MVVM;
 using Memory_game.View;
 using Memory_game_shared.Models;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -143,18 +144,26 @@ namespace Memory_game.ViewModel
         {
             string[] imageFiles = _deckService.GetCardsFromDeck(deckName);
 
-            var imagePathsByPairId = new Dictionary<int, string>();
+            var imagePathsByFileName = imageFiles
+                .GroupBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+                .Where(group => !string.IsNullOrWhiteSpace(group.Key))
+                .ToDictionary(group => group.Key!, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+            var fallbackImagePathsByPairId = new Dictionary<int, string>();
             for (int i = 0; i < imageFiles.Length; i++)
             {
-                if (i < imageFiles.Length)
-                {
-                    imagePathsByPairId[i] = imageFiles[i];
-                }
+                fallbackImagePathsByPairId[i] = imageFiles[i];
             }
 
             foreach (Card card in cardsFromServer)
             {
-                string imagePath = imagePathsByPairId.ContainsKey(card.pairId) ? imagePathsByPairId[card.pairId] : string.Empty;
+                string imagePath = string.Empty;
+                string serverFileName = Path.GetFileName(card.imagePath);
+
+                if (!string.IsNullOrWhiteSpace(serverFileName) && imagePathsByFileName.TryGetValue(serverFileName, out string localImagePath))
+                    imagePath = localImagePath;
+                else if (fallbackImagePathsByPairId.TryGetValue(card.pairId, out string fallbackImagePath))
+                    imagePath = fallbackImagePath;
 
                 var newCard = new CardViewModel(card.id, card.pairId, imagePath);
                 newCard.IsFaceUp = card.isFaceUp;

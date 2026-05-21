@@ -47,6 +47,7 @@ namespace Memory_game_server.Hubs
                 existingSession.NickName = GetDisplayName(playerToken, nickName);
                 _gameState.PlayerNames[playerToken] = existingSession.NickName;
 
+                await SendDeckPackageToSession(existingSession);
                 await Clients.Caller.SendAsync(HubMethods.GameStarted, _gameState);
                 await Clients.Caller.SendAsync(HubMethods.ChangeTurn, _currentPlayerTurn, _gameState.settings.TurnTimeSeconds);
 
@@ -81,14 +82,7 @@ namespace Memory_game_server.Hubs
                 {
                     foreach (var session in _sessions)
                     {
-                        if (session.Token != _gameState.HostId)
-                        {
-                            await Clients.Client(session.ConnectionId).SendAsync(
-                                HubMethods.DeckPackage,
-                                _gameState.settings.DeckName,
-                                _gameState.settings.DeckZipData,
-                                _gameState.settings.ImagePaths.Length);
-                        }
+                        await SendDeckPackageToSession(session);
                     }
                 }
 
@@ -144,6 +138,27 @@ namespace Memory_game_server.Hubs
                 }
                 _currentlyFlippedCards.Clear();
             }
+        }
+
+
+        private async Task SendDeckPackageToSession(PlayerSession session)
+        {
+            if (session.Token == _gameState.HostId)
+                return;
+
+            if (string.IsNullOrWhiteSpace(session.ConnectionId))
+                return;
+
+            if (_gameState.settings?.DeckZipData == null || _gameState.settings.DeckZipData.Length == 0)
+                return;
+
+            int expectedCardCount = _gameState.settings.ImagePaths?.Length ?? 0;
+
+            await Clients.Client(session.ConnectionId).SendAsync(
+                HubMethods.DeckPackage,
+                _gameState.settings.DeckName,
+                _gameState.settings.DeckZipData,
+                expectedCardCount);
         }
 
         private async Task PassTurnToNextOnlinePlayer()
