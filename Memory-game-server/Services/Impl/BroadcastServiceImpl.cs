@@ -1,4 +1,5 @@
 ﻿
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -30,6 +31,7 @@ namespace Memory_game_server.Services.Impl
         {
             running = false;
             udpClient?.Close();
+            Debug.WriteLine("Stopping broadcasting");
         }
 
         public void SetLobbyName(string lobbyName)

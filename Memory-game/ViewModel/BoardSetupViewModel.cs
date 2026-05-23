@@ -247,7 +247,7 @@ namespace Memory_game.ViewModel
         {
             _lobbyService.OnGameStarted -= HandleGameStarted;
 
-            _broadcastService.StopBroadcasting();
+            _broadcastService.SetLobbyName($"{_lobbyName} (w toku)");
 
             Application.Current.Dispatcher.Invoke(() =>
             {
@@ -258,6 +258,7 @@ namespace Memory_game.ViewModel
         public async Task CleanUp()
         {
             _lobbyService.OnGameStarted -= HandleGameStarted;
+            _broadcastService.StopBroadcasting();
         }
     }
 }

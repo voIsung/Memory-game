@@ -4,6 +4,7 @@ using Memory_game_shared.Models;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace Memory_game.ViewModel
 {
@@ -16,6 +17,8 @@ namespace Memory_game.ViewModel
 
         public ObservableCollection<string> AvailableServers { get; } = new();
         private Dictionary<string, string> _lobbyAddresses = new();
+        private Dictionary<string, DateTime> _lastSeenServers = new();
+        private DispatcherTimer _cleanupTimer;
         private bool _isConnecting = false;
         private bool _isGameStarting = false;
 
@@ -60,30 +63,11 @@ namespace Memory_game.ViewModel
             _navigationService = navigationService;
             _lastServerService = lastServerService;
 
-            _serverListener.ServerFound += (lobbyName, address) =>
-            {
-                App.Current.Dispatcher.Invoke(() =>
-                {
-                    if (!AvailableServers.Contains(lobbyName))
-                    {
-                        AvailableServers.Add(lobbyName);
-                        _lobbyAddresses[lobbyName] = address;
-                    }
-                });
-            };
 
+            SubscribeToEvents();
             _serverListener.StartListeningAsync();
-            _lobbyService.OnGameStarted += HandleGameStarter;
-            _lobbyService.OnWaitingForPlayers += HandleWaitingForPlayers;
-
-            string lastAddress = _lastServerService.GetLastServerAddress();
-            if (!string.IsNullOrEmpty(lastAddress))
-            {
-                string reconnectName = "Dołącz ponownie";
-                AvailableServers.Add(reconnectName);
-                _lobbyAddresses[reconnectName] = lastAddress;
-            }
-
+            StartCleanupTimer();
+            LoadLastServer();
         }
 
         private string _selectedServer;
@@ -151,6 +135,7 @@ namespace Memory_game.ViewModel
 
         public void CleanUp()
         {
+            _cleanupTimer.Stop();
             _lobbyService.OnGameStarted -= HandleGameStarter;
             _lobbyService.OnWaitingForPlayers -= HandleWaitingForPlayers;
 
@@ -159,6 +144,74 @@ namespace Memory_game.ViewModel
 
             _serverListener.StopListening();
             Debug.WriteLine("Closing udp");
+        }
+
+        private void SubscribeToEvents()
+        {
+            _serverListener.ServerFound += (lobbyName, address) =>
+            {
+                App.Current.Dispatcher.Invoke(() =>
+                {
+                    _lastSeenServers[address] = DateTime.Now;
+
+                    var existingGame = _lobbyAddresses.FirstOrDefault(x => x.Value == address).Key;
+
+                    if (existingGame != null)
+                    {
+                        return;
+                    }
+
+                    if (!AvailableServers.Contains(lobbyName))
+                    {
+                        AvailableServers.Add(lobbyName);
+                        _lobbyAddresses[lobbyName] = address;
+                    }
+                });
+            };
+
+            _lobbyService.OnGameStarted += HandleGameStarter;
+            _lobbyService.OnWaitingForPlayers += HandleWaitingForPlayers;
+        }
+
+        private void StartCleanupTimer()
+        {
+            _cleanupTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+            _cleanupTimer.Tick += (sender, e) =>
+            {
+                var stale = _lastSeenServers.Where(x => (DateTime.Now - x.Value).TotalSeconds > 6)
+                .Select(x => x.Key)
+                .ToList();
+
+                foreach (var address in stale)
+                {
+                    _lastSeenServers.Remove(address);
+                    var lobbyName = _lobbyAddresses.FirstOrDefault(x => x.Value == address).Key;
+                    if (lobbyName != null)
+                    {
+                        _lobbyAddresses.Remove(lobbyName);
+                        AvailableServers.Remove(lobbyName);
+                    }
+                }
+
+            };
+
+            _cleanupTimer.Start();
+        }
+
+
+        private void LoadLastServer()
+        {
+            string lastAddress = _lastServerService.GetLastServerAddress();
+            if (!string.IsNullOrEmpty(lastAddress))
+            {
+                string reconnectName = "Dołącz ponownie";
+                AvailableServers.Add(reconnectName);
+                _lobbyAddresses[reconnectName] = lastAddress;
+                _lastSeenServers[lastAddress] = DateTime.Now.AddSeconds(-5);
+
+                _lastServerService.ClearLastServerAddress();
+            }
+
         }
 
 
