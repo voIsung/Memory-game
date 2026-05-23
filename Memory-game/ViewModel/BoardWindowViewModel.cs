@@ -1,6 +1,7 @@
 ﻿using Memory_game.Model.Services;
 using Memory_game.MVVM;
 using Memory_game.View;
+using Memory_game_server.Services;
 using Memory_game_shared.Models;
 using System.Collections.ObjectModel;
 using System.Windows;
@@ -28,6 +29,7 @@ namespace Memory_game.ViewModel
         private readonly ILobbyService _lobbyService;
         private readonly IServerManager _serverManager;
         private readonly ILastServerService _lastServerService;
+        private readonly IBroadcastService _broadcastService;
         public ObservableCollection<CardViewModel> Cards { get; set; } = new ObservableCollection<CardViewModel>();
         public ObservableCollection<PlayerScoreViewModel> ScoreBoard { get; set; } = new ObservableCollection<PlayerScoreViewModel>();
 
@@ -127,6 +129,7 @@ namespace Memory_game.ViewModel
             _lobbyService = lobbyService;
             _serverManager = serverManager;
             _lastServerService = lastServerService;
+            _broadcastService = App.BroadcastService;
 
             _lobbyService.OnCardFlipped += HandleCardFlipped;
             _lobbyService.OnMatchFound += HandleCardsMatchFound;
@@ -483,6 +486,7 @@ namespace Memory_game.ViewModel
 
                 try
                 {
+                    _broadcastService.StopBroadcasting();
                     await _serverManager.StopServerAsync();
                 }
                 catch

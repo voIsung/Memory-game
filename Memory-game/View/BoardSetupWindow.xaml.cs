@@ -16,7 +16,7 @@ namespace Memory_game.View
                 navigationService,
                 deckService, 
                 App.SharedLobbyService,
-                new BroadcastServiceImpl(),
+                App.BroadcastService,
                 new ServerManagerImpl(),
                 new DeckPackageService()
                 );

@@ -258,7 +258,6 @@ namespace Memory_game.ViewModel
         public async Task CleanUp()
         {
             _lobbyService.OnGameStarted -= HandleGameStarted;
-            _broadcastService.StopBroadcasting();
         }
     }
 }
