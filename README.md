@@ -1,7 +1,3 @@
-# Memory game
-
-A C# WPF game in which we play the classic memory game known from childhood, you can play it with your friends, with real-time multiplayer functionality powered by SignalR.
-
 ## ⚙️ Setup
 1. Clone the repository:
    ```bash
